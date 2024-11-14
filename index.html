@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dublin Attractions</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <script src="https://unpkg.com/react@16/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.6/prop-types.js"></script>
+    <script type="text/babel">
+    "use strict"
+
+    class GeneralAttractions extends React.Component {
+
+        constructor(props){
+            super(props)
+            this.state = {
+                attractionsList: [],
+                searchText: '',
+                orderingPreference: 'name',
+                minimumRating: '',
+                selectedTag: '',
+                isDeleteModalVisible: false,
+                attractionToRemove: null,
+                tagOptions: [],
+                tagInput: '',
+            }
+        }
+
+        componentDidMount(){
+            fetch("dataset.json")
+                .then(response => response.json())
+                .then(data => {
+                    const updatedData = data.map(item => ({
+                        ...item,
+                        isFree: item.description.toLowerCase().includes('free') ? 'yes' : 'no',
+                    }))
+                    this.setState({ attractionsList: updatedData })
+                })
+                .catch(error => console.error('Data fetching error:', error))
+        }
+
+        updateSearchText = (event) => {
+            this.setState({ searchText: event.target.value })
+        }
+
+        updateSortingPreference = (event) => {
+            this.setState({ orderingPreference: event.target.value })
+        }
+
+        updateMinimumRating = (event) => {
+            this.setState({ minimumRating: event.target.value })
+        }
+
+        updateSelectedTag = (event) => {
+            this.setState({ selectedTag: event.target.value })
+        }
+
+        updateTagInput = (event) => {
+            this.setState({ tagInput: event.target.value })
+        }
+
+        addNewTag = () => {
+            const { tagInput, tagOptions } = this.state
+            if (tagInput && !tagOptions.includes(tagInput.toLowerCase())) {
+                this.setState(prevState => ({
+                    tagOptions: [...prevState.tagOptions, tagInput],
+                    tagInput: ''
+                }))
+            }
+        }
+
+        deleteTag = (tagToDelete) => {
+            this.setState(prevState => ({
+                tagOptions: prevState.tagOptions.filter(tag => tag !== tagToDelete)
+            }))
+        }
+        updateSelectedTag = (event) => {
+          const newTag = event.target.value;
+          this.setState({ selectedTag: newTag });
+        }
+
+        showDeleteModal = (attraction) => {
+            this.setState({
+                isDeleteModalVisible: true,
+                attractionToRemove: attraction
+            })
+        }
+
+        hideDeleteModal = () => {
+            this.setState({
+                isDeleteModalVisible: false,
+                attractionToRemove: null
+            })
+        }
+
+        removeAttraction = () => {
+            const { attractionToRemove, attractionsList } = this.state
+            const updatedList = attractionsList.filter(item => item.id !== attractionToRemove.id)
+            this.setState({
+                attractionsList: updatedList,
+                isDeleteModalVisible: false,
+                attractionToRemove: null
+            })
+        }
+
+        render()
+        {
+    const {
+        attractionsList, searchText, orderingPreference, minimumRating, selectedTag, tagOptions, tagInput, isDeleteModalVisible, attractionToRemove
+    } = this.state;
+
+    const filteredAttractions = attractionsList.filter(item => {
+        const matchesSearch = 
+            item.name.toLowerCase().includes(searchText.toLowerCase()) || 
+            item.description.toLowerCase().includes(searchText.toLowerCase());
+        
+        const meetsRatingRequirement =
+            minimumRating === '' || item.rating >= Number(minimumRating);
+        
+        const hasSelectedTag =
+            selectedTag === '' || (item.tags && item.tags.some(tag => tag.toLowerCase().includes(selectedTag.toLowerCase())));
+
+        return matchesSearch && meetsRatingRequirement && hasSelectedTag;
+    });
+
+    const orderedAttractions = filteredAttractions.sort((a, b) => {
+        if (orderingPreference === 'name') {
+            return a.name.localeCompare(b.name)
+        } else if (orderingPreference === 'isFree') {
+            return (a.isFree === 'yes' ? -1 : 1) - (b.isFree === 'yes' ? -1 : 1)
+        }
+        return 0;
+    });
+
+            return (
+                <div>
+                    <h1>Dublin Attractions</h1>
+                    <input
+                        type="text"
+                        placeholder="Search attractions"
+                        value={searchText}
+                        onChange={this.updateSearchText}
+                    />
+                    <input
+                        type="number"
+                        placeholder="Minimum Rating"
+                        value={minimumRating}
+                        onChange={this.updateMinimumRating}
+                    />
+                    <input
+                        type="text"
+                        placeholder="Tag (e.g., museum)"
+                        value={selectedTag}
+                        onChange={this.updateSelectedTag}
+                    />
+                    <select value={orderingPreference} onChange={this.updateSortingPreference}>
+                        <option value="name">Sort by Name</option>
+                        <option value="isFree">Sort by Free entry</option>
+                    </select>
+                    <h2>Available Tags</h2>
+                    <ul>
+                        {tagOptions.map(tag => (
+                            <li key={tag}>
+                                {tag} <button onClick={() => this.deleteTag(tag)}>remove</button>
+                            </li>
+                        ))}
+                    </ul>
+                    <input
+                        type="text"
+                        placeholder="Add new tag"
+                        value={tagInput}
+                        onChange={this.updateTagInput}
+                    />
+                    <button onClick={this.addNewTag}>Add Tag</button>
+                    <ul>
+                        {orderedAttractions.map(attraction => (
+                            <li key={attraction.id}>
+                                <strong>{attraction.name}</strong> - Free: {attraction.isFree}
+                                <p>{attraction.description}</p>
+                                <button onClick={() => this.showDeleteModal(attraction)}>Delete</button>
+                            </li>
+                        ))}
+                    </ul>
+                    {isDeleteModalVisible && (
+                        <div className="modal">
+                            <div className="modal-content">
+                                <p>Are you sure you want to delete "{attractionToRemove.name}"?</p>
+                                <button onClick={this.removeAttraction}>Yes, Delete</button>
+                                <button onClick={this.hideDeleteModal}>No, Close</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )
+        }
+        }
+    
+
+    ReactDOM.render(<GeneralAttractions />, document.getElementById("Container"))
+    </script>
+</head>
+
+<body>
+<div id="Container"></div>
+</body>
+</html>
