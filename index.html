@@ -4,16 +4,16 @@
     <title>Dublin Attractions</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+    <link href="css/main.css" rel="stylesheet" type="text/css"/>
     <script src="https://unpkg.com/react@16/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.6/prop-types.js"></script>
+    <link rel="stylesheet" href="main.css" />
     <script type="text/babel">
     "use strict"
 
     class GeneralAttractions extends React.Component {
-
         constructor(props){
             super(props)
             this.state = {
@@ -24,12 +24,12 @@
                 selectedTag: '',
                 isDeleteModalVisible: false,
                 attractionToRemove: null,
-                tagOptions: [],
-                tagInput: '',
+                isEditing: false,
+                editingAttraction: {},
             }
         }
 
-        componentDidMount(){
+        componentDidMount() {
             fetch("dataset.json")
                 .then(response => response.json())
                 .then(data => {
@@ -58,30 +58,44 @@
             this.setState({ selectedTag: event.target.value })
         }
 
-        updateTagInput = (event) => {
-            this.setState({ tagInput: event.target.value })
+        // Start editing attraction
+        startEditing = (id) => {
+            const attraction = this.state.attractionsList.find(item => item.id === id)
+            this.setState({
+                isEditing: true,
+                editingAttraction: { ...attraction }
+            })
         }
 
-        addNewTag = () => {
-            const { tagInput, tagOptions } = this.state
-            if (tagInput && !tagOptions.includes(tagInput.toLowerCase())) {
-                this.setState(prevState => ({
-                    tagOptions: [...prevState.tagOptions, tagInput],
-                    tagInput: ''
-                }))
-            }
-        }
-
-        deleteTag = (tagToDelete) => {
+        // Handle input changes in the edit form
+        handleEditInputChange = (event) => {
+            const { name, value } = event.target
             this.setState(prevState => ({
-                tagOptions: prevState.tagOptions.filter(tag => tag !== tagToDelete)
+                editingAttraction: {
+                    ...prevState.editingAttraction,
+                    [name]: value
+                }
             }))
         }
-        updateSelectedTag = (event) => {
-          const newTag = event.target.value;
-          this.setState({ selectedTag: newTag });
+
+        // Save edited attraction
+        submitEdit = () => {
+            const { editingAttraction, attractionsList } = this.state
+            const updatedList = attractionsList.map(item =>
+                item.id === editingAttraction.id ? editingAttraction : item
+            )
+            this.setState({
+                attractionsList: updatedList,
+                isEditing: false,
+                editingAttraction: {}
+            })
         }
 
+        cancelEdit = () => {
+            this.setState({ isEditing: false, editingAttraction: {} })
+        }
+
+        // Delete attraction logic
         showDeleteModal = (attraction) => {
             this.setState({
                 isDeleteModalVisible: true,
@@ -106,38 +120,39 @@
             })
         }
 
-        render()
-        {
-    const {
-        attractionsList, searchText, orderingPreference, minimumRating, selectedTag, tagOptions, tagInput, isDeleteModalVisible, attractionToRemove
-    } = this.state;
+        render() {
+            const {
+                attractionsList, searchText, orderingPreference, minimumRating, selectedTag, isEditing, editingAttraction,
+                isDeleteModalVisible, attractionToRemove
+            } = this.state;
 
-    const filteredAttractions = attractionsList.filter(item => {
-        const matchesSearch = 
-            item.name.toLowerCase().includes(searchText.toLowerCase()) || 
-            item.description.toLowerCase().includes(searchText.toLowerCase());
-        
-        const meetsRatingRequirement =
-            minimumRating === '' || item.rating >= Number(minimumRating);
-        
-        const hasSelectedTag =
-            selectedTag === '' || (item.tags && item.tags.some(tag => tag.toLowerCase().includes(selectedTag.toLowerCase())));
+            const filteredAttractions = attractionsList.filter(item => {
+                const matchesSearch =
+                    item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+                    item.description.toLowerCase().includes(searchText.toLowerCase())
+                
+                const meetsRatingRequirement =
+                    minimumRating === '' || item.rating >= Number(minimumRating)
+                
+                const hasSelectedTag =
+                    selectedTag === '' || (item.tags && item.tags.some(tag => tag.toLowerCase().includes(selectedTag.toLowerCase())))
 
-        return matchesSearch && meetsRatingRequirement && hasSelectedTag;
-    });
+                return matchesSearch && meetsRatingRequirement && hasSelectedTag
+            })
 
-    const orderedAttractions = filteredAttractions.sort((a, b) => {
-        if (orderingPreference === 'name') {
-            return a.name.localeCompare(b.name)
-        } else if (orderingPreference === 'isFree') {
-            return (a.isFree === 'yes' ? -1 : 1) - (b.isFree === 'yes' ? -1 : 1)
-        }
-        return 0;
-    });
+            const orderedAttractions = filteredAttractions.sort((a, b) => {
+                if (orderingPreference === 'name') {
+                    return a.name.localeCompare(b.name)
+                } else if (orderingPreference === 'isFree') {
+                    return (a.isFree === 'yes' ? -1 : 1) - (b.isFree === 'yes' ? -1 : 1)
+                }
+                return 0
+            })
 
             return (
                 <div>
                     <h1>Dublin Attractions</h1>
+
                     <input
                         type="text"
                         placeholder="Search attractions"
@@ -158,36 +173,84 @@
                     />
                     <select value={orderingPreference} onChange={this.updateSortingPreference}>
                         <option value="name">Sort by Name</option>
-                        <option value="isFree">Sort by Free entry</option>
+                        <option value="isFree">Sort by Free Entry</option>
                     </select>
-                    <h2>Available Tags</h2>
-                    <ul>
-                        {tagOptions.map(tag => (
-                            <li key={tag}>
-                                {tag} <button onClick={() => this.deleteTag(tag)}>remove</button>
-                            </li>
-                        ))}
-                    </ul>
-                    <input
-                        type="text"
-                        placeholder="Add new tag"
-                        value={tagInput}
-                        onChange={this.updateTagInput}
-                    />
-                    <button onClick={this.addNewTag}>Add Tag</button>
-                    <ul>
-                        {orderedAttractions.map(attraction => (
-                            <li key={attraction.id}>
-                                <strong>{attraction.name}</strong> - Free: {attraction.isFree}
-                                <p>{attraction.description}</p>
-                                <button onClick={() => this.showDeleteModal(attraction)}>Delete</button>
-                            </li>
-                        ))}
-                    </ul>
+
+                    {isEditing && (
+                        <div className="edit-form">
+                            <h2>Edit Attraction</h2>
+                            <input
+                                type="text"
+                                name="name"
+                                placeholder="Attraction Name"
+                                value={editingAttraction.name || ''}
+                                onChange={this.handleEditInputChange}
+                            />
+                            <textarea
+                                name="description"
+                                placeholder="Description"
+                                value={editingAttraction.description || ''}
+                                onChange={this.handleEditInputChange}
+                            />
+                            <input
+                                type="number"
+                                name="rating"
+                                placeholder="Rating"
+                                value={editingAttraction.rating || ''}
+                                onChange={this.handleEditInputChange}
+                            />
+                            <input
+                                type="text"
+                                name="tags"
+                                placeholder="Tags (comma-separated)"
+                                value={editingAttraction.tags ? editingAttraction.tags.join(', ') : ''}
+                                onChange={(e) => {
+                                    const tags = e.target.value.split(',').map(tag => tag.trim())
+                                    this.setState(prevState => ({
+                                        editingAttraction: {
+                                            ...prevState.editingAttraction,
+                                            tags
+                                        }
+                                    }))
+                                }}
+                            />
+                            <button onClick={this.submitEdit}>Save Changes</button>
+                            <button onClick={this.cancelEdit}>Cancel</button>
+                        </div>
+                    )}
+
+                    <div className="table-wrapper">
+                        <table className="attraction-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Free</th>
+                                    <th>Rating</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {orderedAttractions.map(attraction => (
+                                    <tr key={attraction.id}>
+                                        <td>{attraction.name}</td>
+                                        <td>{attraction.description}</td>
+                                        <td>{attraction.isFree}</td>
+                                        <td>{attraction.rating}</td>
+                                        <td>
+                                            <button onClick={() => this.startEditing(attraction.id)}>Edit</button>
+                                            <button onClick={() => this.showDeleteModal(attraction)}>Delete</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
                     {isDeleteModalVisible && (
                         <div className="modal">
                             <div className="modal-content">
-                                <p>Are you sure you want to delete "{attractionToRemove.name}"?</p>
+                                <p>Are you sure you want to delete "{attractionToRemove && attractionToRemove.name}"?</p>
                                 <button onClick={this.removeAttraction}>Yes, Delete</button>
                                 <button onClick={this.hideDeleteModal}>No, Close</button>
                             </div>
@@ -196,14 +259,12 @@
                 </div>
             )
         }
-        }
-    
+    }
 
     ReactDOM.render(<GeneralAttractions />, document.getElementById("Container"))
     </script>
 </head>
-
 <body>
-<div id="Container"></div>
+    <div id="Container"></div>
 </body>
 </html>
